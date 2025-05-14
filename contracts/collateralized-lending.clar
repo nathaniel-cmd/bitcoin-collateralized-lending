@@ -74,3 +74,83 @@
 { active-loans: (list 10 uint) }
 
 )
+
+;; Price oracle data
+(define-map collateral-prices
+  
+{ asset: (string-ascii 3) }
+  
+{ price: uint }
+
+)
+
+;; Private Functions
+
+;; Calculate the current collateral-to-loan ratio as a percentage
+(define-private (calculate-collateral-ratio
+    (collateral uint)
+    (loan uint)
+    (btc-price uint)
+  )
+  (let (
+      (collateral-value (* collateral btc-price))
+      (ratio (* (/ collateral-value loan) u100))
+    )
+    ratio
+  )
+)
+
+;; Calculate interest accrued over a period of blocks
+(define-private (calculate-interest
+    (principal uint)
+    (rate uint)
+    (blocks uint)
+  )
+  (let (
+      ;; Daily interest divided by blocks per day (144 blocks = 1 day)
+      (interest-per-block (/ (* principal rate) (* u100 u144)))
+      (total-interest (* interest-per-block blocks))
+    )
+    total-interest
+  )
+)
+
+;; Check if a loan position needs to be liquidated
+(define-private (check-liquidation (loan-id uint))
+  (let (
+      (loan (unwrap! (map-get? loans { loan-id: loan-id }) ERR-LOAN-NOT-FOUND))
+      (btc-price (unwrap! (get price (map-get? collateral-prices { asset: "BTC" }))
+        ERR-NOT-INITIALIZED
+      ))
+      (current-ratio (calculate-collateral-ratio (get collateral-amount loan)
+        (get loan-amount loan) btc-price
+      ))
+    )
+    (if (<= current-ratio (var-get liquidation-threshold))
+      (liquidate-position loan-id)
+      (ok true)
+    )
+  )
+)
+
+;; Process liquidation of an under-collateralized position
+(define-private (liquidate-position (loan-id uint))
+  (let (
+      (loan (unwrap! (map-get? loans { loan-id: loan-id }) ERR-LOAN-NOT-FOUND))
+      (borrower (get borrower loan))
+    )
+    (begin
+      (map-set loans { loan-id: loan-id } (merge loan { status: "liquidated" }))
+      (map-delete user-loans { user: borrower })
+      (ok true)
+    )
+  )
+)
+
+;; Validate that a loan ID exists within the system
+(define-private (validate-loan-id (loan-id uint))
+  (and
+    (> loan-id u0)
+    (<= loan-id (var-get total-loans-issued))
+  )
+)
