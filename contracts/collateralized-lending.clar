@@ -313,3 +313,30 @@
     (ok (map-set collateral-prices { asset: asset } { price: new-price }))
   )
 )
+
+;; Read-Only Functions
+
+;; Get details for a specific loan
+(define-read-only (get-loan-details (loan-id uint))
+  (map-get? loans { loan-id: loan-id })
+)
+
+;; Get all active loans for a user
+(define-read-only (get-user-loans (user principal))
+  (map-get? user-loans { user: user })
+)
+
+;; Get overall platform statistics
+(define-read-only (get-platform-stats)
+  {
+    total-btc-locked: (var-get total-btc-locked),
+    total-loans-issued: (var-get total-loans-issued),
+    minimum-collateral-ratio: (var-get minimum-collateral-ratio),
+    liquidation-threshold: (var-get liquidation-threshold),
+  }
+)
+
+;; Get list of supported assets
+(define-read-only (get-valid-assets)
+  VALID-ASSETS
+)
